@@ -1,0 +1,113 @@
+// Folder: /client/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Follow-Up Reminder</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- Include Lottie -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.7.6/lottie.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-blue-300 text-gray-900 font-sans">
+  <div class="min-h-screen flex flex-col items-center justify-center">
+    <h1 class="text-5xl font-extrabold mb-4 text-blue-800">📅 Follow-Up Reminder System</h1>
+
+    <!-- Doctor Icon -->
+    <img src="/Image/Doc.png" alt="Doctor Icon" class="w-32 h-32 mb-4 rounded-full shadow-lg border-2 border-blue-400">
+
+    <!-- Ding Image that triggers sound -->
+    <img src="./Image/ding.png" alt="Ding Sound" width="200px" style="cursor: pointer;" onclick="document.getElementById('ding').play().catch(e => console.error('Sound play failed:', e))">
+    <audio id="ding" src="./Image/ding.mp3" preload="auto"></audio>
+
+    <p class="text-lg mb-6">Send <span class="font-semibold text-green-700">WhatsApp</span> reminders to patients for their follow-up appointments.</p>
+
+    <!-- Lottie Animation Container -->
+    <div id="doctorAnimation" class="w-64 h-64 mb-6"></div>
+
+    <form id="reminderForm" class="bg-white p-8 rounded-2xl shadow-2xl w-96 border border-blue-200">
+      <label class="block mb-2 font-semibold">Patient Number: <span class="text-sm text-gray-500">(Include country code)</span></label>
+      <input type="text" id="patientNumber" class="w-full p-3 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-300" placeholder="+1234567890" required>
+
+      <label class="block mb-2 font-semibold">Doctor Name: <span class="text-sm text-gray-500">(Full name)</span></label>
+      <input type="text" id="doctorName" class="w-full p-3 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-300" required>
+
+      <label class="block mb-2 font-semibold">Appointment Time: <span class="text-sm text-gray-500">(Date & time)</span></label>
+      <input type="datetime-local" id="appointmentTime" class="w-full p-3 border rounded-lg mb-6 focus:ring-2 focus:ring-blue-300" required>
+
+      <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all duration-300">Send Reminder</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    lottie.loadAnimation({
+      container: document.getElementById('doctorAnimation'),
+      renderer: 'svg',
+      loop: true,
+      autoplay: true,
+      path: 'https://assets4.lottiefiles.com/packages/lf20_b4y3wnuv.json'
+    });
+  </script>
+</body>
+</html>
+
+// Folder: /client/app.js
+document.getElementById('reminderForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const number = document.getElementById('patientNumber').value;
+  const doctor = document.getElementById('doctorName').value;
+  const time = document.getElementById('appointmentTime').value;
+
+  const response = await fetch('http://localhost:3000/send-reminder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ number, doctor, time })
+  });
+
+  if (response.ok) {
+    const audio = document.getElementById('ding');
+    audio.volume = 1.0;
+    audio.play();
+    alert('Reminder sent successfully!');
+  } else {
+    alert('Failed to send reminder.');
+  }
+});
+
+// Folder: /server/index.js
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const twilio = require('twilio');
+const path = require('path');
+
+dotenv.config();
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '../client')));
+
+const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
+
+app.post('/send-reminder', async (req, res) => {
+  const { number, doctor, time } = req.body;
+  try {
+    await client.messages.create({
+      from: 'whatsapp:+14155238886',
+      to: `whatsapp:${number}`,
+      body: `Hello! This is a reminder that you have an appointment with Dr. ${doctor} at ${time}.`
+    });
+    res.status(200).send({ message: 'Reminder sent' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Failed to send reminder' });
+  }
+});
+
+app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+
+// .env file (do NOT upload to GitHub)
+// TWILIO_SID=your_twilio_sid
+// TWILIO_AUTH=your_twilio_auth_token
